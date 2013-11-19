@@ -1,5 +1,17 @@
-*.class
+# Identifies the subfolders and files to ignore from the 
+# Subfolders to ignore
 target/
+logs/
+wsdl/
+
+# Files to ignore 
+catalog.xml
+Thumbs.db
+thumbs.db
+msg.txt
+*.pdf
+*.log
+*.class
 
 # Package Files #
 *.jar
