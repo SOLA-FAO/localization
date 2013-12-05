@@ -218,7 +218,8 @@ public class MainForm extends javax.swing.JFrame {
                             }
                             
                             FileOutputStream fw = new FileOutputStream(file);
-                            out = new BufferedWriter(new OutputStreamWriter(fw, "UTF-8"));
+                            //out = new BufferedWriter(new OutputStreamWriter(fw, "UTF-8"));
+                            out = new BufferedWriter(new OutputStreamWriter(fw));
                             int i = 0;
 
                             // Loop thought the table records
