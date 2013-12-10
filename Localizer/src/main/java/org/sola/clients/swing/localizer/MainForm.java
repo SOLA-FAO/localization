@@ -5,13 +5,12 @@ import java.awt.Toolkit;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -477,7 +476,10 @@ public class MainForm extends javax.swing.JFrame {
                         try {
 
                             String line;
-                            br = new BufferedReader(new FileReader(folderPath + separator + fName));
+                            br = new BufferedReader(
+                                    new InputStreamReader(
+                                            new FileInputStream(folderPath + separator + fName), "UTF8"));
+                            //br = new BufferedReader(new FileReader(folderPath + separator + fName));
 
                             String pKeyValue = "";
                             String field = "";
@@ -1656,9 +1658,7 @@ public class MainForm extends javax.swing.JFrame {
             jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel8Layout.createSequentialGroup()
                 .addGroup(jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(jPanel8Layout.createSequentialGroup()
-                        .addComponent(jLabel7)
-                        .addGap(0, 0, Short.MAX_VALUE))
+                    .addComponent(jLabel7)
                     .addGroup(jPanel8Layout.createSequentialGroup()
                         .addComponent(txtFolderPath, javax.swing.GroupLayout.PREFERRED_SIZE, 241, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
@@ -1669,7 +1669,7 @@ public class MainForm extends javax.swing.JFrame {
                         .addComponent(btnImportRefData, javax.swing.GroupLayout.PREFERRED_SIZE, 74, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                         .addComponent(btnGenerateBrScripts)))
-                .addContainerGap())
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
         jPanel8Layout.setVerticalGroup(
             jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
