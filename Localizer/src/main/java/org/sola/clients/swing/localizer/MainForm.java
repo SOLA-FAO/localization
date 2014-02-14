@@ -215,7 +215,7 @@ public class MainForm extends javax.swing.JFrame {
                             if (!file.exists()) {
                                 file.createNewFile();
                             }
-                            
+
                             FileOutputStream fw = new FileOutputStream(file);
                             out = new BufferedWriter(new OutputStreamWriter(fw, "UTF-8"));
                             //out = new BufferedWriter(new OutputStreamWriter(fw));
@@ -281,8 +281,8 @@ public class MainForm extends javax.swing.JFrame {
                         if (!file.exists()) {
                             file.createNewFile();
                         }
-                        FileWriter fw = new FileWriter(file.getAbsoluteFile());
-                        out = new BufferedWriter(fw);
+                        FileOutputStream fw = new FileOutputStream(file);
+                        out = new BufferedWriter(new OutputStreamWriter(fw, "UTF-8"));
                         int i = 0;
 
                         // Loop thought the table records
@@ -1049,24 +1049,10 @@ public class MainForm extends javax.swing.JFrame {
                     conn = createConnection();
                     Statement cmd = conn.createStatement();
                     Statement cmd2 = conn.createStatement();
-                    String sql = "SELECT code FROM system.br_validation_target_type";
+                    String sql;
 
-                    ResultSet rs = cmd.executeQuery(sql);
+                    ResultSet rs;
                     ResultSet rs2;
-                    ArrayList<String> targets = new ArrayList<String>();
-
-                    while (rs.next()) {
-                        targets.add(rs.getString("code"));
-                    }
-
-                    rs.close();
-
-                    if (targets.size() < 1) {
-                        exception = new Exception("No BR targets found");
-                        return null;
-                    }
-
-                    targets.add("generators");
 
                     // Get reference data tables list
                     String[] refTables = getRefTablesList();
@@ -1077,7 +1063,7 @@ public class MainForm extends javax.swing.JFrame {
                     }
 
                     progressBar.setMinimum(0);
-                    progressBar.setMaximum(targets.size() + refTables.length);
+                    progressBar.setMaximum(refTables.length + 1);
                     int cnt = 0;
 
                     String dashes = "----------------------------------------------------------------------------------------------------";
@@ -1085,115 +1071,111 @@ public class MainForm extends javax.swing.JFrame {
                             + "VALUES ('%s', '%s', '%s', '%s');";
                     String brDefinitionTemplate = "INSERT INTO system.br_definition(br_id, active_from, active_until, body) \r\n"
                             + "VALUES ('%s', now(), 'infinity', '%s');";
-                    String brValidationTemplate = "INSERT INTO system.br_validation(br_id, target_code, target_application_moment, severity_code, order_of_execution) \r\n"
-                            + "VALUES ('%s', '%s', '%s', '%s', %s);";
+                    String brValidationTemplate = "INSERT INTO system.br_validation(br_id, target_code, target_application_moment, "
+                            + "target_service_moment, target_reg_moment, target_request_type_code, target_rrr_type_code, severity_code, order_of_execution) \r\n"
+                            + "VALUES ('%s', %s, %s, %s, %s, %s, %s, %s, %s);";
                     String lastUpdate = "update system.br set display_name = id where display_name !=id;";
 
                     txtMessages.append("Generating business rules script");
                     txtMessages.append("\r\n");
 
                     // Scroll through the target objects
-                    for (String target : targets) {
-                        progressBar.setValue(cnt);
-                        cnt += 1;
+                    progressBar.setValue(cnt);
+                    cnt += 1;
 
-                        txtMessages.append("Generating scripts for " + target);
-                        txtMessages.append("\r\n");
+                    // Get BRs
+                    sql = "SELECT id, technical_type_code, feedback, technical_description FROM system.br";
 
-                        if (target.equals("generators")) {
-                            // Get BRs without targets
-                            sql = "SELECT id, technical_type_code, feedback, technical_description FROM system.br "
-                                    + "WHERE id NOT IN (SELECT br_id FROM system.br_validation)";
-                        } else {
-                            // Get BRs by target
-                            sql = "SELECT id, technical_type_code, feedback, technical_description FROM system.br "
-                                    + "WHERE id IN (SELECT br_id FROM system.br_validation WHERE target_code = '" + target + "')";
+                    rs = cmd.executeQuery(sql);
+
+                    try {
+                        // Create file
+                        String fileName = savePath + System.getProperty("file.separator") + "business_rules.sql";
+
+                        File file = new File(fileName);
+                        if (!file.exists()) {
+                            file.createNewFile();
                         }
 
-                        rs = cmd.executeQuery(sql);
+                        FileOutputStream fw = new FileOutputStream(file);
+                        out = new BufferedWriter(new OutputStreamWriter(fw, "UTF-8"));
 
-                        try {
-                            // Create file
-                            String fileName = savePath + System.getProperty("file.separator") + "br_target_" + target + ".sql";
-                            if (target.equals("generators")) {
-                                fileName = savePath + System.getProperty("file.separator") + "br_" + target + ".sql";
-                            }
+                        out.write("SET client_encoding = 'UTF8';");
+                        out.newLine();
+                        out.newLine();
 
-                            File file = new File(fileName);
-                            if (!file.exists()) {
-                                file.createNewFile();
-                            }
+                        while (rs.next()) {
+                            String brId = prepareString(rs.getString("id"), false);
 
-                            FileOutputStream fw = new FileOutputStream(file);
-                            out = new BufferedWriter(new OutputStreamWriter(fw, "UTF-8"));
+                            out.write(String.format(brTemplate,
+                                    brId,
+                                    prepareString(rs.getString("technical_type_code"), false),
+                                    prepareString(rs.getString("feedback"), false),
+                                    prepareString(rs.getString("technical_description"), false)));
 
-                            while (rs.next()) {
-                                String brId = prepareString(rs.getString("id"));
-
-                                out.write(String.format(brTemplate,
-                                        brId,
-                                        prepareString(rs.getString("technical_type_code")),
-                                        prepareString(rs.getString("feedback")),
-                                        prepareString(rs.getString("technical_description"))));
-
-                                out.newLine();
-                                out.newLine();
-
-                                // Get definitions
-                                sql = "SELECT br_id, active_from, active_until, body FROM system.br_definition WHERE br_id = '" + brId + "'";
-                                rs2 = cmd2.executeQuery(sql);
-
-                                while (rs2.next()) {
-                                    out.write(String.format(brDefinitionTemplate,
-                                            brId,
-                                            prepareString(rs2.getString("body"))));
-                                    out.newLine();
-                                    out.newLine();
-                                }
-                                rs2.close();
-
-                                // Get validations
-                                sql = "SELECT br_id, target_code, target_application_moment, severity_code, order_of_execution FROM system.br_validation WHERE br_id = '" + brId + "'";
-                                rs2 = cmd2.executeQuery(sql);
-
-                                while (rs2.next()) {
-                                    out.write(String.format(brValidationTemplate,
-                                            brId,
-                                            prepareString(rs2.getString("target_code")),
-                                            prepareString(rs2.getString("target_application_moment")),
-                                            prepareString(rs2.getString("severity_code")),
-                                            rs2.getInt("order_of_execution")));
-                                    out.newLine();
-                                    out.newLine();
-                                }
-                                rs2.close();
-
-                                out.write(dashes);
-                                out.newLine();
-                                out.newLine();
-                            }
-
-                            out.write(lastUpdate);
                             out.newLine();
-                            rs.close();
+                            out.newLine();
 
-                        } catch (Exception e) {
-                            exception = e;
-                            return null;
-                        } finally {
-                            if (out != null) {
-                                try {
-                                    out.close();
-                                } catch (IOException ex) {
-                                    exception = ex;
-                                    return null;
-                                }
+                            // Get definitions
+                            sql = "SELECT br_id, active_from, active_until, body FROM system.br_definition WHERE br_id = '" + brId + "'";
+                            rs2 = cmd2.executeQuery(sql);
+
+                            while (rs2.next()) {
+                                out.write(String.format(brDefinitionTemplate,
+                                        brId,
+                                        prepareString(rs2.getString("body"), false)));
+                                out.newLine();
+                                out.newLine();
                             }
+                            rs2.close();
+
+                            // Get validations
+                            sql = "SELECT br_id, target_code, target_application_moment, target_service_moment, "
+                                    + "target_reg_moment, target_request_type_code, target_rrr_type_code, severity_code, order_of_execution "
+                                    + "FROM system.br_validation WHERE br_id = '" + brId + "'";
+                            rs2 = cmd2.executeQuery(sql);
+
+                            while (rs2.next()) {
+                                out.write(String.format(brValidationTemplate,
+                                        brId,
+                                        prepareString(rs2.getString("target_code"), true, true),
+                                        prepareString(rs2.getString("target_application_moment"), true, true),
+                                        prepareString(rs2.getString("target_service_moment"), true, true),
+                                        prepareString(rs2.getString("target_reg_moment"), true, true),
+                                        prepareString(rs2.getString("target_request_type_code"), true, true),
+                                        prepareString(rs2.getString("target_rrr_type_code"), true, true),
+                                        prepareString(rs2.getString("severity_code"), true, true),
+                                        rs2.getInt("order_of_execution")));
+                                out.newLine();
+                                out.newLine();
+                            }
+                            rs2.close();
+
+                            out.write(dashes);
+                            out.newLine();
+                            out.newLine();
                         }
 
-                        txtMessages.append("SUCCESS");
-                        txtMessages.append("\r\n");
+                        out.write(lastUpdate);
+                        out.newLine();
+                        rs.close();
+
+                    } catch (Exception e) {
+                        exception = e;
+                        return null;
+                    } finally {
+                        if (out != null) {
+                            try {
+                                out.close();
+                            } catch (IOException ex) {
+                                exception = ex;
+                                return null;
+                            }
+                        }
                     }
+
+                    txtMessages.append("SUCCESS");
+                    txtMessages.append("\r\n");
 
                     // Generate reference data script
                     txtMessages.append("Generating script for reference data tables");
@@ -1212,6 +1194,9 @@ public class MainForm extends javax.swing.JFrame {
 
                         FileOutputStream fw = new FileOutputStream(file);
                         out = new BufferedWriter(new OutputStreamWriter(fw, "UTF-8"));
+                        out.write("SET client_encoding = 'UTF8';");
+                        out.newLine();
+                        out.newLine();
 
                         // Scroll through reference data tables
                         for (String refTable : refTables) {
@@ -1309,7 +1294,7 @@ public class MainForm extends javax.swing.JFrame {
                                 } catch (Exception e) {
                                     System.out.println(e.getMessage());
                                 }
-                                
+
                             }
                             rs.close();
 
@@ -1404,7 +1389,7 @@ public class MainForm extends javax.swing.JFrame {
                     refTables[j] = tmpArray[j];
                 }
             }
-            
+
         } catch (Exception e) {
             return refTables;
         } finally {
@@ -1419,11 +1404,28 @@ public class MainForm extends javax.swing.JFrame {
         return refTables;
     }
 
-    private String prepareString(String str) {
+    private String prepareString(String str, boolean allowNulls) {
+        return prepareString(str, allowNulls, false);
+    }
+
+    private String prepareString(String str, boolean allowNulls, boolean addQuotes) {
         if (str == null) {
-            return "";
+            if (allowNulls) {
+                return "NULL";
+            } else {
+                if (addQuotes) {
+                    return "''";
+                } else {
+                    return "";
+                }
+            }
         }
-        return str.replace("'", "''");
+
+        if (addQuotes) {
+            return "'" + str.replace("'", "''") + "'";
+        } else {
+            return str.replace("'", "''");
+        }
     }
 
     @SuppressWarnings("unchecked")
