@@ -7,11 +7,12 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.math.BigInteger;
+import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -217,8 +218,8 @@ public class MainForm extends javax.swing.JFrame {
                             }
 
                             FileOutputStream fw = new FileOutputStream(file);
-                            out = new BufferedWriter(new OutputStreamWriter(fw, "UTF-8"));
-                            //out = new BufferedWriter(new OutputStreamWriter(fw));
+                            out = new BufferedWriter(new OutputStreamWriter(fw, Charset.forName("UTF-8").newEncoder()));
+
                             int i = 0;
 
                             // Loop thought the table records
@@ -229,6 +230,7 @@ public class MainForm extends javax.swing.JFrame {
                                     out.newLine();
                                 }
                                 i = 1;
+                                //out.write(new String(UnicodeUtil.convert((tableName + "." + rs.getString("code") + ".display_value = " + rs.getString("display_value")).getBytes(), "UTF-8")));
                                 out.write(tableName + "." + rs.getString("code") + ".display_value = " + rs.getString("display_value"));
                                 if (hasDescription) {
                                     out.newLine();
@@ -240,7 +242,6 @@ public class MainForm extends javax.swing.JFrame {
                                     out.write(tableName + "." + rs.getString("code") + ".description = " + descr);
                                 }
                             }
-
                         } catch (Exception e) {
                             exception = e;
                             return null;
@@ -498,7 +499,12 @@ public class MainForm extends javax.swing.JFrame {
                                     continue;
                                 }
 
-                                if (line.startsWith(tableName + ".") && line.contains("=")) {
+                                int pos = line.indexOf(tableName + ".");
+
+                                if ((pos == 0 || pos == 1) && line.contains("=")) {
+                                    if (pos == 1) {
+                                        line = line.substring(1);
+                                    }
                                     // Update previous value. This is reuired if values is multi lines
                                     if (!pKeyValue.equals("")) {
                                         // Get current value and combine localized string
@@ -714,7 +720,8 @@ public class MainForm extends javax.swing.JFrame {
                     progressBar.setIndeterminate(true);
 
                     // Go through the folders and copy resources
-                    cnt = copyFiles(txtSolaExportFolder.getText(), savePath, langCode, txtSolaExportFolder.getText());
+                    cnt = copyFiles(txtSolaExportFolder.getText(), savePath,
+                            langCode, txtSolaExportFolder.getText(), true);
                 } catch (Exception e) {
                     exception = e;
                     return null;
@@ -787,7 +794,8 @@ public class MainForm extends javax.swing.JFrame {
 
                     // Go through the source folders and copy resources
                     cnt = copyFiles(txtBundlesImportSourceFolder.getText(),
-                            txtBundlesSolaImportFolder.getText(), "", txtBundlesImportSourceFolder.getText());
+                            txtBundlesSolaImportFolder.getText(), "",
+                            txtBundlesImportSourceFolder.getText(), false);
                 } catch (Exception e) {
                     exception = e;
                     return null;
@@ -815,7 +823,28 @@ public class MainForm extends javax.swing.JFrame {
         task.execute();
     }
 
-    private int copyFiles(final String sourceFolder, final String savePath, final String langCode, String folderPath) {
+    private int copyFiles(final String sourceFolder, final String savePath,
+            final String langCode, String folderPath, boolean export) {
+        // Skip folders with system config files
+        if (export && !folderPath.equalsIgnoreCase(sourceFolder)) {
+            String destFolderName = folderPath.substring(sourceFolder.length() + 1)
+                    .replace("\\", ".").replace("/", ".");
+            if(destFolderName.equalsIgnoreCase("clients.swing.admin.src.main.resources.config") || 
+                    destFolderName.equalsIgnoreCase("clients.swing.bulk-operations.src.main.resources.config") ||
+                    destFolderName.equalsIgnoreCase("clients.swing.common.src.main.resources.org.sola.clients.swing.common.tasks.resources") ||
+                    destFolderName.equalsIgnoreCase("clients.swing.common.src.main.resources.org.sola.clients.swing.common.tasks") ||
+                    destFolderName.equalsIgnoreCase("clients.swing.desktop.src.main.resources.config") ||
+                    destFolderName.equalsIgnoreCase("clients.swing.desktop.src.org.sola.clients.desktop.resources") ||
+                    destFolderName.equalsIgnoreCase("clients.swing.geotools-ui.src.main.resources.org.geotools.swing.extended.resources") ||
+                    destFolderName.equalsIgnoreCase("clients.swing.geotools-ui.src.main.resources.org.geotools.swing.extended.util.resources") ||
+                    destFolderName.equalsIgnoreCase("services.services-common.src.main.resources") ||
+                    destFolderName.equalsIgnoreCase("clients.swing.gis.src.main.resources.org.sola.clients.swing.gis.layer.resources") ||
+                    destFolderName.equalsIgnoreCase("common.rules.src.main.resources") ||
+                    destFolderName.equalsIgnoreCase("services.test-common.src.main.resources")){
+                return 0;
+            }
+        }
+
         File f = new File(folderPath);
 
         // Copy files
@@ -829,18 +858,51 @@ public class MainForm extends javax.swing.JFrame {
         int cnt = 0;
 
         for (String fName : files) {
-            if (fName.endsWith("_" + langCode + ".properties")
-                    || (langCode.equals("") && fName.endsWith(".properties"))) {
-                String currentFilePath = folderPath + System.getProperty("file.separator") + fName;
-                String newFilePath = savePath + System.getProperty("file.separator")
-                        + folderPath.substring(sourceFolder.length());
+            if (fName.endsWith(".properties") && fName.length() > 11) {
+                String destFileName = fName;
 
-                try {
-                    FileUtils.copyFileToDirectory(new File(currentFilePath), new File(newFilePath));
-                    cnt += 1;
-                } catch (IOException ex) {
-                    JOptionPane.showMessageDialog(null, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                    return cnt;
+                // Check for default bundle file
+                if (export && !fName.matches("^[\\w\\-. ]+\\_[a-zA-Z]{2}\\_[a-zA-Z]{2}.properties$")) {
+                    // Check bundle file exists for selected language, otherwise copy from default
+                    String bundleName = fName.substring(0, fName.lastIndexOf("."));
+                    boolean found = false;
+
+                    for (String fTmpName : files) {
+                        if (fTmpName.equalsIgnoreCase(bundleName + "_" + langCode + ".properties")) {
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (!found) {
+                        // Set new bundle name with destination language code to copy from default bundle
+                        destFileName = bundleName + "_" + langCode + ".properties";
+                    }
+                }
+
+                if (destFileName.endsWith("_" + langCode + ".properties") || (langCode.equals(""))) {
+                    String currentFilePath = folderPath + System.getProperty("file.separator") + fName;
+                    String newFilePath;
+
+                    if (export) {
+                        newFilePath = savePath + System.getProperty("file.separator")
+                                + folderPath.substring(sourceFolder.length() + 1)
+                                .replace("\\", ".").replace("/", ".")
+                                + System.getProperty("file.separator") + destFileName;
+                    } else {
+                        newFilePath = savePath + System.getProperty("file.separator")
+                                + folderPath.substring(sourceFolder.length())
+                                .replace(".", System.getProperty("file.separator"))
+                                + System.getProperty("file.separator") + destFileName;
+                    }
+
+                    try {
+                        FileUtils.copyFile(new File(currentFilePath), new File(newFilePath));
+                        cnt += 1;
+                    } catch (IOException ex) {
+                        JOptionPane.showMessageDialog(null, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                        return cnt;
+                    }
                 }
             }
         }
@@ -856,7 +918,7 @@ public class MainForm extends javax.swing.JFrame {
             // Skip target folders
             if (!dName.equals("target")) {
                 cnt += copyFiles(sourceFolder, savePath, langCode,
-                        folderPath + System.getProperty("file.separator") + dName);
+                        folderPath + System.getProperty("file.separator") + dName, export);
             }
         }
         return cnt;
