@@ -113,6 +113,7 @@ public class MainForm extends javax.swing.JFrame {
     }
 
     private class SortedProperties extends Properties {
+
         @Override
         public Enumeration keys() {
             Enumeration keysEnum = super.keys();
@@ -291,19 +292,40 @@ public class MainForm extends javax.swing.JFrame {
 
                     // Scroll through the reference data tables
                     for (Map.Entry<Object, Object> table : refTables.entrySet()) {
+                        // Check table exists
+                        String tableName = table.getKey().toString();
+                        String schemaName = tableName.split("\\.")[0];
+                        String tblName = tableName.split("\\.")[1];
+                        
+                        String sql = "SELECT EXISTS ("
+                                + "    SELECT 1 "
+                                + "    FROM   pg_catalog.pg_class c "
+                                + "    JOIN   pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
+                                + "    WHERE  n.nspname = '" + schemaName + "' "
+                                + "    AND    c.relname = '" + tblName + "' "
+                                + "    AND    c.relkind = 'r' "
+                                + ")";
+                                
+                        cmd = conn.createStatement();      
+                        ResultSet rs = cmd.executeQuery(sql);
+                        
+                        if(rs.next()){
+                            if(!rs.getBoolean(1)){
+                                rs.close();
+                                continue;
+                            }
+                        }
+                        
+                        rs.close();
                         cnt += 1;
 
-                        String tableName = table.getKey().toString();
                         txtMessages.append("Exporting " + tableName);
                         txtMessages.append("\r\n");
-
-                        cmd = conn.createStatement();
+                        
                         boolean hasDescription = true;
                         if (tableName.equalsIgnoreCase("system.language")) {
                             hasDescription = false;
                         }
-
-                        String sql;
 
                         if (hasDescription) {
                             sql = String.format("SELECT code, get_translation(display_value, '%s') as display_value, "
@@ -316,8 +338,9 @@ public class MainForm extends javax.swing.JFrame {
                                     + "get_translation(display_value, null) as default_display_value "
                                     + "FROM %s;", langCode, tableName);
                         }
-
-                        ResultSet rs = cmd.executeQuery(sql);
+                        
+                        cmd = conn.createStatement(); 
+                        rs = cmd.executeQuery(sql);
 
                         try {
                             // Loop thought the table records
