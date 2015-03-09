@@ -296,7 +296,7 @@ public class MainForm extends javax.swing.JFrame {
                         String tableName = table.getKey().toString();
                         String schemaName = tableName.split("\\.")[0];
                         String tblName = tableName.split("\\.")[1];
-                        
+
                         String sql = "SELECT EXISTS ("
                                 + "    SELECT 1 "
                                 + "    FROM   pg_catalog.pg_class c "
@@ -305,23 +305,23 @@ public class MainForm extends javax.swing.JFrame {
                                 + "    AND    c.relname = '" + tblName + "' "
                                 + "    AND    c.relkind = 'r' "
                                 + ")";
-                                
-                        cmd = conn.createStatement();      
+
+                        cmd = conn.createStatement();
                         ResultSet rs = cmd.executeQuery(sql);
-                        
-                        if(rs.next()){
-                            if(!rs.getBoolean(1)){
+
+                        if (rs.next()) {
+                            if (!rs.getBoolean(1)) {
                                 rs.close();
                                 continue;
                             }
                         }
-                        
+
                         rs.close();
                         cnt += 1;
 
                         txtMessages.append("Exporting " + tableName);
                         txtMessages.append("\r\n");
-                        
+
                         boolean hasDescription = true;
                         if (tableName.equalsIgnoreCase("system.language")) {
                             hasDescription = false;
@@ -348,8 +348,8 @@ public class MainForm extends javax.swing.JFrame {
                                     + "get_translation(display_value, null) as default_display_value "
                                     + "FROM %s;", langCode, tableName);
                         }
-                        
-                        cmd = conn.createStatement(); 
+
+                        cmd = conn.createStatement();
                         rs = cmd.executeQuery(sql);
 
                         try {
@@ -639,6 +639,7 @@ public class MainForm extends javax.swing.JFrame {
 
                 txtMessages.setText("");
                 Connection conn = null;
+                boolean dbTabFound = true;
 
                 try {
                     FileInputStream fileIn = new FileInputStream(resources);
@@ -647,114 +648,129 @@ public class MainForm extends javax.swing.JFrame {
                     HSSFSheet sheet = wb.getSheetAt(0);
 
                     if (!sheet.getSheetName().equals("DB")) {
-                        exception = new Exception("Sheet with DB resources not found.");
-                        return null;
+                        //exception = new Exception("Sheet with DB resources not found.");
+                        //return null;
+                        dbTabFound = false;
+                        txtMessages.append("DB tab is not found");
+                        txtMessages.append("\r\n");
                     }
 
-                    // Create connection
-                    Class.forName("org.postgresql.Driver");
-                    conn = createConnection();
-                    Statement cmd = conn.createStatement();
+                    if (dbTabFound) {
+                        // Create connection
+                        Class.forName("org.postgresql.Driver");
+                        conn = createConnection();
+                        Statement cmd = conn.createStatement();
 
-                    // Check language code exist
-                    String sql = "SELECT code, item_order FROM system.language "
-                            + "WHERE lower(code) = lower('" + langCode + "') ORDER BY item_order";
+                        // Check language code exist
+                        String sql = "SELECT code, item_order FROM system.language "
+                                + "WHERE lower(code) = lower('" + langCode + "') ORDER BY item_order";
 
-                    ResultSet rs = cmd.executeQuery(sql);
-                    if (!rs.next()) {
-                        // Language doesn't exist, inset new record
-                        sql = "INSERT INTO system.language (code, display_value, active, is_default, item_order) VALUES "
-                                + "('" + langCode + "', 'new_lanuage', 't', 'f', (SELECT MAX(item_order) FROM system.language) + 1)";
-                        cmd.executeUpdate(sql);
-                    }
-
-                    rs.close();
-
-                    // Read all languages for correct order
-                    sql = "SELECT code, item_order FROM system.language ORDER BY item_order";
-                    rs = cmd.executeQuery(sql);
-                    ArrayList<Language> langs = new ArrayList<Language>();
-
-                    while (rs.next()) {
-                        langs.add(new Language(rs.getString("code"), rs.getInt("item_order")));
-                    }
-
-                    Collections.sort(langs, new Comparator<Language>() {
-
-                        @Override
-                        public int compare(Language s1, Language s2) {
-                            if (s1.getItemOrder() < s2.getItemOrder()) {
-                                return -1;
-                            } else if (s1.getItemOrder() > s2.getItemOrder()) {
-                                return 1;
-                            } else {
-                                return 0;
-                            }
-                        }
-                    });
-
-                    rs.close();
-
-                    if (langs.size() < 1) {
-                        exception = new Exception("Languages not found in the table");
-                        return null;
-                    }
-
-                    // Scroll through the reference data table lines
-                    txtMessages.append("Importing ref tables");
-                    txtMessages.append("\r\n");
-                    int lastRow = sheet.getLastRowNum();
-
-                    for (int i = sheet.getFirstRowNum() + 1; i <= lastRow; i++) {
-                        HSSFRow row = sheet.getRow(i);
-
-                        String tableName = row.getCell(0).getStringCellValue();
-
-                        // Make updates
-                        String pKeyValue = row.getCell(1).getStringCellValue();
-                        String field = row.getCell(2).getStringCellValue();
-                        row.getCell(3).setCellType(HSSFCell.CELL_TYPE_STRING);
-                        String value = row.getCell(3).getStringCellValue();
-                        String pKeyField = "code";
-
-                        if (tableName.equalsIgnoreCase("system.br")) {
-                            pKeyField = "id";
-                        }
-
-                        if (!pKeyValue.equals("")) {
-                            // Get current value and combine localized string
-                            sql = String.format("SELECT %s FROM %s WHERE %s = '%s'", field, tableName, pKeyField, pKeyValue);
-                            rs = cmd.executeQuery(sql);
-                            if (rs.next()) {
-                                value = makeLocalizedString(rs.getString(field), langCode, value, langs);
-                            }
-                            rs.close();
-
-                            // Update previous values
-                            sql = String.format("UPDATE %s SET %s = '%s' WHERE %s = '%s'",
-                                    tableName, field, value, pKeyField, pKeyValue);
+                        ResultSet rs = cmd.executeQuery(sql);
+                        if (!rs.next()) {
+                            // Language doesn't exist, inset new record
+                            sql = "INSERT INTO system.language (code, display_value, active, is_default, item_order) VALUES "
+                                    + "('" + langCode + "', 'new_lanuage', 't', 'f', (SELECT MAX(item_order) FROM system.language) + 1)";
                             cmd.executeUpdate(sql);
                         }
+
+                        rs.close();
+
+                        // Read all languages for correct order
+                        sql = "SELECT code, item_order FROM system.language ORDER BY item_order";
+                        rs = cmd.executeQuery(sql);
+                        ArrayList<Language> langs = new ArrayList<Language>();
+
+                        while (rs.next()) {
+                            langs.add(new Language(rs.getString("code"), rs.getInt("item_order")));
+                        }
+
+                        Collections.sort(langs, new Comparator<Language>() {
+
+                            @Override
+                            public int compare(Language s1, Language s2) {
+                                if (s1.getItemOrder() < s2.getItemOrder()) {
+                                    return -1;
+                                } else if (s1.getItemOrder() > s2.getItemOrder()) {
+                                    return 1;
+                                } else {
+                                    return 0;
+                                }
+                            }
+                        });
+
+                        rs.close();
+
+                        if (langs.size() < 1) {
+                            exception = new Exception("Languages not found in the table");
+                            return null;
+                        }
+
+                        // Scroll through the reference data table lines
+                        txtMessages.append("Importing ref tables");
+                        txtMessages.append("\r\n");
+                        int lastRow = sheet.getLastRowNum();
+
+                        for (int i = sheet.getFirstRowNum() + 1; i <= lastRow; i++) {
+                            HSSFRow row = sheet.getRow(i);
+
+                            String tableName = row.getCell(0).getStringCellValue();
+
+                            // Make updates
+                            String pKeyValue = row.getCell(1).getStringCellValue();
+                            String field = row.getCell(2).getStringCellValue();
+                            row.getCell(3).setCellType(HSSFCell.CELL_TYPE_STRING);
+                            String value = row.getCell(3).getStringCellValue();
+                            String pKeyField = "code";
+
+                            if (tableName.equalsIgnoreCase("system.br")) {
+                                pKeyField = "id";
+                            }
+
+                            if (!pKeyValue.equals("")) {
+                                // Get current value and combine localized string
+                                sql = String.format("SELECT %s FROM %s WHERE %s = '%s'", field, tableName, pKeyField, pKeyValue);
+                                rs = cmd.executeQuery(sql);
+                                if (rs.next()) {
+                                    value = makeLocalizedString(rs.getString(field), langCode, value, langs);
+                                }
+                                rs.close();
+
+                                // Update previous values
+                                sql = String.format("UPDATE %s SET %s = '%s' WHERE %s = '%s'",
+                                        tableName, field, value, pKeyField, pKeyValue);
+                                cmd.executeUpdate(sql);
+                            }
+                        }
+
+                        txtMessages.append("All reference data tables were updated.");
+                        txtMessages.append("\r\n");
+                        cmd.close();
                     }
-
-                    txtMessages.append("All reference data tables were updated.");
-                    txtMessages.append("\r\n");
-                    cmd.close();
-
                     txtMessages.append("Copying resource files.");
                     txtMessages.append("\r\n");
 
                     // Copy/create bundle files
                     HSSFSheet resSheet = wb.getSheetAt(1);
-
+                    
                     if (!resSheet.getSheetName().equals("Bundles")) {
-                        exception = new Exception("Sheet with Bundle resources not found.");
-                        return null;
+                        boolean bundlesTabFound = false;
+                        // Try first tab if DB tab wasn't found
+                        if(!dbTabFound){
+                            // try first tab
+                            resSheet = wb.getSheetAt(0);
+                            if (resSheet.getSheetName().equals("Bundles")) {
+                                bundlesTabFound = true;
+                            }
+                        }
+                        if(!bundlesTabFound){
+                            exception = new Exception("Sheet with Bundle resources not found.");
+                            return null;
+                        }
                     }
 
                     // Create a collection of resources;
                     List<BundleResource> bundleResources = new ArrayList();
-                    lastRow = resSheet.getLastRowNum();
+                    int lastRow = resSheet.getLastRowNum();
                     for (int i = resSheet.getFirstRowNum() + 1; i <= lastRow; i++) {
                         HSSFRow row = resSheet.getRow(i);
                         row.getCell(2).setCellType(HSSFCell.CELL_TYPE_STRING);
