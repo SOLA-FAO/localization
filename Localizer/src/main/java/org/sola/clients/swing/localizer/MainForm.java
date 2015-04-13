@@ -738,6 +738,7 @@ public class MainForm extends javax.swing.JFrame {
                                 // Update previous values
                                 sql = String.format("UPDATE %s SET %s = '%s' WHERE %s = '%s'",
                                         tableName, field, value, pKeyField, pKeyValue);
+                                System.out.println(sql);
                                 cmd.executeUpdate(sql);
                             }
                         }
@@ -1003,6 +1004,7 @@ public class MainForm extends javax.swing.JFrame {
 
         if (bundles.size() > 0) {
             for (String bundle : bundles) {
+                System.out.println("processing " + relFolderPath + System.getProperty("file.separator") + bundle);
                 ResourceBundle rb = ResourceBundle.getBundle(bundle, locale, loader);
                 ResourceBundle rbd = ResourceBundle.getBundle(bundle, new Locale("default"), loader);
                 String bundlePath = relFolderPath + System.getProperty("file.separator") + bundle;
