@@ -323,30 +323,26 @@ public class MainForm extends javax.swing.JFrame {
                         txtMessages.append("\r\n");
 
                         boolean hasDescription = true;
-                        if (tableName.equalsIgnoreCase("system.language")) {
+                        if (tableName.equalsIgnoreCase("system.language") || tableName.equalsIgnoreCase("system.config_map_layer")) {
                             hasDescription = false;
                         }
 
                         if (hasDescription) {
-                            if (tableName.equalsIgnoreCase("application.request_type")) {
-                                sql = String.format("SELECT code, get_translation(display_value, '%s') as display_value, "
-                                        + "get_translation(display_value, null) as default_display_value, "
-                                        + "get_translation(description, '%s') as description, "
-                                        + "get_translation(description, null) as default_description, "
-                                        + "get_translation(display_group_name, '%s') as display_group_name, "
-                                        + "get_translation(display_group_name, null) as default_display_group_name "
-                                        + "FROM %s;", langCode, langCode, langCode, tableName);
+                            sql = String.format("SELECT code, get_translation(display_value, '%s') as display_value, "
+                                    + "get_translation(display_value, null) as default_display_value, "
+                                    + "get_translation(description, '%s') as description, "
+                                    + "get_translation(description, null) as default_description "
+                                    + "FROM %s;", langCode, langCode, tableName);
+                        } else {
+                            if (tableName.equalsIgnoreCase("system.config_map_layer")) {
+                                sql = String.format("SELECT name, get_translation(title, '%s') as title, "
+                                        + "get_translation(title, null) as default_title "
+                                        + "FROM %s;", langCode, tableName);
                             } else {
                                 sql = String.format("SELECT code, get_translation(display_value, '%s') as display_value, "
-                                        + "get_translation(display_value, null) as default_display_value, "
-                                        + "get_translation(description, '%s') as description, "
-                                        + "get_translation(description, null) as default_description "
-                                        + "FROM %s;", langCode, langCode, tableName);
+                                        + "get_translation(display_value, null) as default_display_value "
+                                        + "FROM %s;", langCode, tableName);
                             }
-                        } else {
-                            sql = String.format("SELECT code, get_translation(display_value, '%s') as display_value, "
-                                    + "get_translation(display_value, null) as default_display_value "
-                                    + "FROM %s;", langCode, tableName);
                         }
 
                         cmd = conn.createStatement();
@@ -355,25 +351,46 @@ public class MainForm extends javax.swing.JFrame {
                         try {
                             // Loop thought the table records
                             while (rs.next()) {
-                                String displayValue = rs.getString("display_value");
-                                String defDisplayValue = rs.getString("default_display_value");
-
                                 Row row = sheet.createRow(i);
-                                row.createCell(0).setCellValue(tableName);
-                                row.createCell(1).setCellValue(rs.getString("code"));
-                                row.createCell(2).setCellValue("display_value");
-                                row.createCell(3).setCellValue(displayValue);
-                                row.createCell(4).setCellValue(defDisplayValue);
-                                if (displayValue.equals(defDisplayValue)) {
-                                    row.getCell(3).setCellStyle(missingStyle);
-                                }
-                                row.getCell(0).setCellType(HSSFCell.CELL_TYPE_STRING);
-                                row.getCell(1).setCellType(HSSFCell.CELL_TYPE_STRING);
-                                row.getCell(2).setCellType(HSSFCell.CELL_TYPE_STRING);
-                                row.getCell(3).setCellType(HSSFCell.CELL_TYPE_STRING);
-                                row.getCell(4).setCellType(HSSFCell.CELL_TYPE_STRING);
+                                if (tableName.equalsIgnoreCase("system.config_map_layer")) {
+                                    String titleValue = rs.getString("title");
+                                    String defTitleValue = rs.getString("default_title");
+                                    row.createCell(0).setCellValue(tableName);
+                                    row.createCell(1).setCellValue(rs.getString("name"));
+                                    row.createCell(2).setCellValue("title");
+                                    row.createCell(3).setCellValue(titleValue);
+                                    row.createCell(4).setCellValue(defTitleValue);
+                                    if (titleValue.equals(defTitleValue)) {
+                                        row.getCell(3).setCellStyle(missingStyle);
+                                    }
+                                    row.getCell(0).setCellType(HSSFCell.CELL_TYPE_STRING);
+                                    row.getCell(1).setCellType(HSSFCell.CELL_TYPE_STRING);
+                                    row.getCell(2).setCellType(HSSFCell.CELL_TYPE_STRING);
+                                    row.getCell(3).setCellType(HSSFCell.CELL_TYPE_STRING);
+                                    row.getCell(4).setCellType(HSSFCell.CELL_TYPE_STRING);
 
-                                row.getCell(4).setCellStyle(protectedStyle);
+                                    row.getCell(4).setCellStyle(protectedStyle);
+                                } else {
+                                    String displayValue = rs.getString("display_value");
+                                    String defDisplayValue = rs.getString("default_display_value");
+
+                                    row.createCell(0).setCellValue(tableName);
+                                    row.createCell(1).setCellValue(rs.getString("code"));
+                                    row.createCell(2).setCellValue("display_value");
+                                    row.createCell(3).setCellValue(displayValue);
+                                    row.createCell(4).setCellValue(defDisplayValue);
+                                    if (displayValue.equals(defDisplayValue)) {
+                                        row.getCell(3).setCellStyle(missingStyle);
+                                    }
+                                    row.getCell(0).setCellType(HSSFCell.CELL_TYPE_STRING);
+                                    row.getCell(1).setCellType(HSSFCell.CELL_TYPE_STRING);
+                                    row.getCell(2).setCellType(HSSFCell.CELL_TYPE_STRING);
+                                    row.getCell(3).setCellType(HSSFCell.CELL_TYPE_STRING);
+                                    row.getCell(4).setCellType(HSSFCell.CELL_TYPE_STRING);
+
+                                    row.getCell(4).setCellStyle(protectedStyle);
+                                }
+
                                 i += 1;
                                 if (hasDescription) {
                                     String descr = rs.getString("description");
@@ -394,34 +411,6 @@ public class MainForm extends javax.swing.JFrame {
                                     row.createCell(4).setCellValue(descr_def);
                                     row.getCell(4).setCellStyle(protectedStyle);
                                     if (descr.equals(descr_def)) {
-                                        row.getCell(3).setCellStyle(missingStyle);
-                                    }
-                                    row.getCell(0).setCellType(HSSFCell.CELL_TYPE_STRING);
-                                    row.getCell(1).setCellType(HSSFCell.CELL_TYPE_STRING);
-                                    row.getCell(2).setCellType(HSSFCell.CELL_TYPE_STRING);
-                                    row.getCell(3).setCellType(HSSFCell.CELL_TYPE_STRING);
-                                    row.getCell(4).setCellType(HSSFCell.CELL_TYPE_STRING);
-                                    i += 1;
-                                }
-                                if (tableName.equalsIgnoreCase("application.request_type")) {
-                                    String groupName = rs.getString("display_group_name");
-                                    if (rs.wasNull()) {
-                                        groupName = "";
-                                    }
-
-                                    String groupNameDef = rs.getString("default_display_group_name");
-                                    if (rs.wasNull()) {
-                                        groupNameDef = "";
-                                    }
-
-                                    row = sheet.createRow(i);
-                                    row.createCell(0).setCellValue(tableName);
-                                    row.createCell(1).setCellValue(rs.getString("code"));
-                                    row.createCell(2).setCellValue("display_group_name");
-                                    row.createCell(3).setCellValue(groupName);
-                                    row.createCell(4).setCellValue(groupNameDef);
-                                    row.getCell(4).setCellStyle(protectedStyle);
-                                    if (groupName.equals(groupNameDef)) {
                                         row.getCell(3).setCellStyle(missingStyle);
                                     }
                                     row.getCell(0).setCellType(HSSFCell.CELL_TYPE_STRING);
@@ -725,6 +714,9 @@ public class MainForm extends javax.swing.JFrame {
                             if (tableName.equalsIgnoreCase("system.br")) {
                                 pKeyField = "id";
                             }
+                            if (tableName.equalsIgnoreCase("system.config_map_layer")) {
+                                pKeyField = "name";
+                            }
 
                             if (!pKeyValue.equals("")) {
                                 // Get current value and combine localized string
@@ -752,18 +744,18 @@ public class MainForm extends javax.swing.JFrame {
 
                     // Copy/create bundle files
                     HSSFSheet resSheet = wb.getSheetAt(1);
-                    
+
                     if (!resSheet.getSheetName().equals("Bundles")) {
                         boolean bundlesTabFound = false;
                         // Try first tab if DB tab wasn't found
-                        if(!dbTabFound){
+                        if (!dbTabFound) {
                             // try first tab
                             resSheet = wb.getSheetAt(0);
                             if (resSheet.getSheetName().equals("Bundles")) {
                                 bundlesTabFound = true;
                             }
                         }
-                        if(!bundlesTabFound){
+                        if (!bundlesTabFound) {
                             exception = new Exception("Sheet with Bundle resources not found.");
                             return null;
                         }
